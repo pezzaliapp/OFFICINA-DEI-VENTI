@@ -341,6 +341,20 @@
       const acceso = engine.isActive(id);
       el.classList.toggle("attivo", acceso);
     });
+    aggiornaConteggio();
+  }
+
+  function aggiornaConteggio() {
+    const n = engine.activeCount();
+    const conteggio = document.getElementById("rosa-conteggio");
+    const spegni = document.getElementById("spegni-tutti");
+    if (conteggio) {
+      conteggio.textContent =
+        n === 0 ? "nessun vento attivo" :
+        n === 1 ? "1 vento attivo" :
+                  `${n} venti attivi`;
+    }
+    if (spegni) spegni.hidden = n === 0;
   }
 
   function toggleVento(id) {
@@ -423,14 +437,184 @@
   }
 
   /* ============================================================
+     REGISTRO DI BORDO (persistito in localStorage)
+     ============================================================ */
+
+  function caricaRegistro() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  function salvaRegistro(registro) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(registro)); }
+    catch (e) { /* quota piena, niente da fare */ }
+  }
+
+  function formattaData(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString("it-IT", {
+      day: "2-digit", month: "short",
+      hour: "2-digit", minute: "2-digit",
+    });
+  }
+
+  function annotaComposizione() {
+    const venti = engine.activeIds().map(id => ({
+      id, intensita: state.intensita[id] != null ? state.intensita[id] : 55,
+    }));
+    const inp = document.getElementById("registro-nota");
+    if (venti.length === 0) {
+      inp.classList.add("scossa");
+      inp.placeholder = "— accendi almeno un vento —";
+      setTimeout(() => {
+        inp.classList.remove("scossa");
+        inp.placeholder = "annota la composizione…";
+      }, 1500);
+      return;
+    }
+    const nota = (inp.value || "").trim();
+    const data = new Date().toISOString();
+    const registro = caricaRegistro();
+    registro.unshift({
+      data, nota: nota || "(senza titolo)", venti,
+    });
+    if (registro.length > 32) registro.length = 32;
+    salvaRegistro(registro);
+    inp.value = "";
+    renderRegistro();
+  }
+
+  function ripristinaComposizione(voce) {
+    engine.extinguishAll();
+    aggiornaEvidenze();
+    setTimeout(() => {
+      voce.venti.forEach(v => {
+        const wind = WINDS.find(w => w.id === v.id);
+        if (!wind) return;
+        state.intensita[v.id] = v.intensita;
+        engine.igniteWind({ ...wind, intensita: v.intensita / 100 });
+      });
+      aggiornaEvidenze();
+      aggiornaBarometro();
+      if (state.selezionato) renderScheda(state.selezionato);
+    }, 80);
+  }
+
+  function eliminaVoce(idx) {
+    const registro = caricaRegistro();
+    registro.splice(idx, 1);
+    salvaRegistro(registro);
+    renderRegistro();
+  }
+
+  function renderRegistro() {
+    const registro = caricaRegistro();
+    const elenco = document.getElementById("registro-elenco");
+    const vuoto = document.getElementById("registro-vuoto");
+    elenco.innerHTML = "";
+    if (!registro.length) {
+      vuoto.hidden = false;
+      return;
+    }
+    vuoto.hidden = true;
+
+    registro.forEach((voce, idx) => {
+      const li = document.createElement("li");
+      li.className = "registro-voce";
+      li.tabIndex = 0;
+      li.title = "tocca per ripristinare la composizione";
+
+      const data = document.createElement("span");
+      data.className = "registro-voce-data";
+      data.textContent = formattaData(voce.data);
+
+      const corpo = document.createElement("div");
+      corpo.className = "registro-voce-corpo";
+
+      const nota = document.createElement("div");
+      nota.className = "registro-voce-nota";
+      nota.textContent = voce.nota;
+
+      const venti = document.createElement("div");
+      venti.className = "registro-voce-venti";
+      venti.textContent = voce.venti.map(v => {
+        const w = WINDS.find(x => x.id === v.id);
+        return w ? w.abbr : "?";
+      }).join(" · ");
+
+      corpo.appendChild(nota);
+      corpo.appendChild(venti);
+
+      const elimina = document.createElement("button");
+      elimina.className = "registro-voce-elimina";
+      elimina.type = "button";
+      elimina.title = "elimina questa voce";
+      elimina.textContent = "✕";
+      elimina.addEventListener("click", e => {
+        e.stopPropagation();
+        eliminaVoce(idx);
+      });
+
+      li.appendChild(data);
+      li.appendChild(corpo);
+      li.appendChild(elimina);
+
+      const ripristina = () => {
+        li.classList.add("lampeggia");
+        setTimeout(() => li.classList.remove("lampeggia"), 900);
+        ripristinaComposizione(voce);
+      };
+
+      li.addEventListener("click", ripristina);
+      li.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          ripristina();
+        }
+      });
+
+      elenco.appendChild(li);
+    });
+  }
+
+  function bindRegistro() {
+    document.getElementById("registro-salva")
+      .addEventListener("click", annotaComposizione);
+
+    const inp = document.getElementById("registro-nota");
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        annotaComposizione();
+      }
+    });
+  }
+
+  function bindSpegniTutti() {
+    document.getElementById("spegni-tutti")
+      .addEventListener("click", () => {
+        engine.extinguishAll();
+        aggiornaEvidenze();
+        aggiornaBarometro();
+        if (state.selezionato) renderScheda(state.selezionato);
+      });
+  }
+
+  /* ============================================================
      INIT
      ============================================================ */
 
   function init() {
     buildRosa();
     buildBarometro();
+    bindRegistro();
+    bindSpegniTutti();
     renderScheda(null);          // mostra l'introduzione dell'atelier
+    renderRegistro();
     aggiornaBarometro();
+    aggiornaConteggio();
   }
 
   if (document.readyState === "loading") {

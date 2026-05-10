@@ -334,6 +334,79 @@ main.atelier {
   letter-spacing: 0.03em;
 }
 
+.rosa-pie {
+  text-align: center;
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--inchiostro-fioco);
+}
+
+.link-incisione {
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--rosso-ossido);
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+  background: none;
+}
+.link-incisione:hover { color: var(--inchiostro); }
+
+.petalo:focus-visible,
+.rosa-nome:focus-visible {
+  outline: 0;
+  filter: drop-shadow(0 0 4px var(--rosso-ossido));
+}
+
+@keyframes scossa {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-3px); }
+  40%, 80% { transform: translateX(3px); }
+}
+.scossa { animation: scossa 0.5s ease; }
+
+.registro-voce-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+.registro-voce-corpo .registro-voce-nota {
+  font-style: italic;
+  color: var(--inchiostro);
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.registro-voce-corpo .registro-voce-venti {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  color: var(--rosso-ossido);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.registro-voce.lampeggia {
+  background: rgba(212, 168, 80, 0.30);
+  border-color: var(--oro-tenue);
+  animation: lampeggia 0.9s ease;
+}
+@keyframes lampeggia {
+  0%   { background: rgba(212, 168, 80, 0.45); }
+  100% { background: rgba(255, 248, 226, 0.5); }
+}
+
 /* ----- scheda ----- */
 
 .scheda-container { padding: 36px 32px 28px; }
