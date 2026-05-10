@@ -670,9 +670,29 @@ input[type="range"]::-moz-range-thumb {
   color: var(--inchiostro);
 }
 .quadrante-svg { width: 100%; height: auto; }
+.quadrante-arco { stroke: var(--inchiostro); }
+
 #ago-barometro {
+  /* la rotazione è impostata via attributo SVG come rotate(ang 100 110),
+     così il pivot è codificato direttamente; transform-origin CSS sarebbe
+     ignorato. La transizione si applica all'attributo transform nei browser
+     moderni (SVG2). */
   transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
-  transform-origin: 100px 110px;
+}
+.ago-stilo {
+  fill: var(--inchiostro);
+}
+.ago-coda {
+  fill: var(--inchiostro-tenue);
+  opacity: 0.85;
+}
+.ago-pivot-base {
+  fill: var(--oro-tenue);
+  stroke: var(--inchiostro);
+  stroke-width: 0.7;
+}
+.ago-pivot-occhio {
+  fill: var(--inchiostro);
 }
 .lettura-barometro {
   margin-top: 6px;

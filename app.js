@@ -379,11 +379,13 @@
   function buildBarometro() {
     const tacche = document.getElementById("quadrante-tacche");
     if (!tacche) return;
-    // 13 tacche da 0 a 12 lungo l'arco da -135° a +135°
+    // L'arco copre il semicerchio superiore: 180° fra -90° (estrema sinistra)
+    // e +90° (estrema destra). Tredici tacche, 0..12, distribuite linearmente:
+    //   B = i  →  ang = -90 + (i/12) * 180.
+    // Il punto sull'arco a quel θ è  (cx + R sin θ, cy - R cos θ).
     for (let i = 0; i <= 12; i++) {
-      const t = i / 12;
-      const ang = -135 + t * 270;            // gradi
-      const rad = ang * Math.PI / 180;
+      const angDeg = -90 + (i / 12) * 180;
+      const rad = angDeg * Math.PI / 180;
       const cx = 100, cy = 110, R = 80;
       const big = i % 3 === 0;
       const len = big ? 8 : 4;
@@ -400,7 +402,7 @@
       tacche.appendChild(tick);
 
       if (big) {
-        const lr = R + 8;
+        const lr = R + 9;
         const lx = cx + lr * Math.sin(rad);
         const ly = cy - lr * Math.cos(rad);
         const lab = svgEl("text", {
@@ -409,7 +411,7 @@
           "font-family": "JetBrains Mono, monospace",
           "font-size": 8,
           fill: "currentColor",
-          opacity: 0.7,
+          opacity: 0.75,
         });
         lab.textContent = String(i);
         tacche.appendChild(lab);
@@ -444,7 +446,10 @@
 
   function aggiornaBarometro() {
     const grado = calcolaBeaufort();
-    const ang = -135 + (grado / 12) * 270;
+    // L'ago è disegnato verticale verso l'alto (B=6 in posizione neutra);
+    // ruotare di -90° lo punta a sinistra (B=0), +90° a destra (B=12).
+    //   ang_rotazione = -90 + (B/12) × 180
+    const ang = -90 + (grado / 12) * 180;
     const ago = document.getElementById("ago-barometro");
     if (ago) ago.setAttribute("transform", `rotate(${ang} 100 110)`);
     document.getElementById("grado-beaufort").textContent = grado;
