@@ -1,69 +1,436 @@
 /* Officina dei Venti — applicazione.
 
-   Per ora: motore audio collegato a una lista di pulsanti di prova,
-   uno per ogni vento presente in winds.js. La rosa SVG e la scheda
-   completa arrivano nei commit successivi. */
+   Costruisce la rosa SVG procedurale, lega click/hover ai venti,
+   renderizza la scheda dinamica, anima il barometro Beaufort.
+   Il registro di bordo è implementato come storia persistita in
+   localStorage. */
 
 (function () {
   "use strict";
 
+  /* ============================================================
+     STATO E MOTORE
+     ============================================================ */
+
   const engine = new WindEngine();
 
-  function init() {
-    const rosa = document.getElementById("rosa");
-    rosa.innerHTML = "";
+  const state = {
+    selezionato: null,           // id del vento mostrato in scheda
+    intensita: {},               // id → 0..100
+  };
 
-    const lista = document.createElement("ul");
-    lista.className = "venti-bozza";
+  const STORAGE_KEY = "officina-venti.registro";
 
-    WINDS.forEach(wind => {
-      const li = document.createElement("li");
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn-vento";
-      btn.dataset.wind = wind.id;
-      btn.textContent = wind.nome;
+  /* ============================================================
+     COSTRUZIONE DELLA ROSA SVG
+     ============================================================ */
 
-      btn.addEventListener("click", () => {
-        if (engine.isActive(wind.id)) {
-          engine.extinguishWind(wind.id);
-          btn.classList.remove("attivo");
-        } else {
-          engine.igniteWind({ ...wind, intensita: 0.55 });
-          btn.classList.add("attivo");
-        }
-        renderScheda(wind.id);
-      });
+  const SVG_NS = "http://www.w3.org/2000/svg";
 
-      li.appendChild(btn);
-      lista.appendChild(li);
+  const ROSA = {
+    SIZE: 780,
+    R_ext: 320,
+    R_inner_rim: 304,
+    R_main_tip: 282,
+    R_main_notch: 100,
+    R_half_tip: 195,
+    R_half_notch: 70,
+    R_label: 358,
+    R_sigla: 304,
+    R_center: 26,
+    HALF_WIDTH_MAIN: 14,
+    HALF_WIDTH_HALF: 9,
+  };
+
+  function pt(angDeg, r, C) {
+    const a = (angDeg - 90) * Math.PI / 180;
+    return [
+      (C + r * Math.cos(a)).toFixed(2),
+      (C + r * Math.sin(a)).toFixed(2),
+    ];
+  }
+
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function buildRosa() {
+    const { SIZE } = ROSA;
+    const C = SIZE / 2;
+
+    const svg = svgEl("svg", {
+      viewBox: `0 0 ${SIZE} ${SIZE}`,
+      class: "rosa-svg",
+      role: "img",
+      "aria-label":
+        "Rosa dei venti — otto venti italiani disposti sui punti cardinali e intercardinali. " +
+        "Tocca un nome per accendere il vento corrispondente.",
     });
 
-    rosa.appendChild(lista);
+    // doppio anello esterno
+    [ROSA.R_ext, ROSA.R_inner_rim].forEach((r, i) => {
+      svg.appendChild(svgEl("circle", {
+        cx: C, cy: C, r,
+        class: i === 0 ? "rosa-anello" : "rosa-anello rosa-anello-fine",
+      }));
+    });
 
-    renderScheda(WINDS[0] && WINDS[0].id);
+    // tacche dei gradi
+    for (let deg = 0; deg < 360; deg += 5) {
+      const cardinale = deg % 90 === 0;
+      const intercardinale = deg % 45 === 0;
+      const big = deg % 30 === 0;
+      const len = cardinale ? 14 : intercardinale ? 12 : big ? 9 : (deg % 15 === 0 ? 6 : 4);
+      const inner = ROSA.R_inner_rim - 4;
+      const outer = inner - len;
+      const [x1, y1] = pt(deg, inner, C);
+      const [x2, y2] = pt(deg, outer, C);
+      svg.appendChild(svgEl("line", {
+        x1, y1, x2, y2,
+        class: big ? "tacca tacca-grande" : "tacca",
+      }));
+    }
+
+    // mezzopetali decorativi (intercardinali fini, non interattivi)
+    for (let i = 0; i < 8; i++) {
+      const ang = i * 45 + 22.5;
+      const [tx, ty] = pt(ang, ROSA.R_half_tip, C);
+      const [lx, ly] = pt(ang - ROSA.HALF_WIDTH_HALF, ROSA.R_half_notch, C);
+      const [rx, ry] = pt(ang + ROSA.HALF_WIDTH_HALF, ROSA.R_half_notch, C);
+
+      svg.appendChild(svgEl("path", {
+        d: `M ${C} ${C} L ${lx} ${ly} L ${tx} ${ty} Z`,
+        class: "mezzopetalo mezzopetalo-chiaro",
+      }));
+      svg.appendChild(svgEl("path", {
+        d: `M ${C} ${C} L ${tx} ${ty} L ${rx} ${ry} Z`,
+        class: "mezzopetalo mezzopetalo-scuro",
+      }));
+    }
+
+    // petali principali — gli otto venti italiani
+    WINDS.forEach(wind => {
+      const ang = wind.gradi;
+      const [tx, ty] = pt(ang, ROSA.R_main_tip, C);
+      const [lx, ly] = pt(ang - ROSA.HALF_WIDTH_MAIN, ROSA.R_main_notch, C);
+      const [rx, ry] = pt(ang + ROSA.HALF_WIDTH_MAIN, ROSA.R_main_notch, C);
+
+      const left = svgEl("path", {
+        d: `M ${C} ${C} L ${lx} ${ly} L ${tx} ${ty} Z`,
+        class: "petalo petalo-chiaro",
+        "data-wind": wind.id,
+        tabindex: 0,
+        role: "button",
+        "aria-label": `${wind.nome}, ${cardinaleIT(wind.gradi)}, ${wind.gradi} gradi`,
+      });
+      const right = svgEl("path", {
+        d: `M ${C} ${C} L ${tx} ${ty} L ${rx} ${ry} Z`,
+        class: "petalo petalo-scuro",
+        "data-wind": wind.id,
+        tabindex: -1,
+      });
+      svg.appendChild(left);
+      svg.appendChild(right);
+    });
+
+    // centro (cerchio + stella)
+    svg.appendChild(svgEl("circle", {
+      cx: C, cy: C, r: ROSA.R_center, class: "rosa-centro",
+    }));
+    svg.appendChild(svgEl("circle", {
+      cx: C, cy: C, r: 5, class: "rosa-stella",
+    }));
+
+    // sigle sui petali (vicino alla punta)
+    WINDS.forEach(wind => {
+      const [sx, sy] = pt(wind.gradi, ROSA.R_main_tip + 18, C);
+      const sigla = svgEl("text", {
+        x: sx, y: sy,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        class: "rosa-sigla",
+        "data-wind": wind.id,
+      });
+      sigla.textContent = wind.abbr;
+      svg.appendChild(sigla);
+    });
+
+    // etichette dei venti (nomi distesi sull'arco esterno)
+    WINDS.forEach(wind => {
+      const [lx, ly] = pt(wind.gradi, ROSA.R_label, C);
+      const label = svgEl("text", {
+        x: lx, y: ly,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        class: "rosa-nome",
+        "data-wind": wind.id,
+      });
+      label.textContent = wind.nome.toLowerCase();
+      svg.appendChild(label);
+    });
+
+    // delegazione eventi
+    svg.addEventListener("click", e => {
+      const id = e.target.dataset && e.target.dataset.wind;
+      if (!id) return;
+      selezionaVento(id);
+      toggleVento(id);
+    });
+
+    svg.addEventListener("mouseover", e => {
+      const id = e.target.dataset && e.target.dataset.wind;
+      if (id) selezionaVento(id, /* solo scheda */ true);
+    });
+
+    svg.addEventListener("keydown", e => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const id = e.target.dataset && e.target.dataset.wind;
+      if (!id) return;
+      e.preventDefault();
+      selezionaVento(id);
+      toggleVento(id);
+    });
+
+    document.getElementById("rosa").appendChild(svg);
+  }
+
+  /* ============================================================
+     SCHEDA DEL VENTO
+     ============================================================ */
+
+  const ATELIER_INTRO = `
+    <div class="atelier-intro">
+      <h2 class="atelier-titolo">L'atelier</h2>
+      <p class="atelier-paragrafo">
+        Otto venti italiani siedono in questa officina, ciascuno con la propria
+        voce, geografia, temperamento. Tocca un nome sulla rosa per accenderlo.
+        Più venti possono soffiare insieme — assieme formano composizioni, e
+        nei tuoi orecchi nasce un mediterraneo immaginario.
+      </p>
+      <p class="atelier-paragrafo">
+        La rosa qui accanto è incisa secondo i modi dei cartografi del Cinquecento;
+        l'audio che ascolterai è invece sintetizzato dal vivo, dal nulla del
+        rumore bianco filtrato e modulato. Niente registrazioni, niente
+        campioni — solo numeri.
+      </p>
+      <p class="atelier-firma">— sfiora un vento per leggerne la scheda —</p>
+    </div>
+  `;
+
+  function cardinaleIT(deg) {
+    return ({
+      0: "tramontana", 45: "greco", 90: "levante", 135: "scirocco",
+      180: "ostro",    225: "libeccio", 270: "ponente", 315: "maestrale",
+    })[deg] || "";
+  }
+
+  function cardinaleAbbr(deg) {
+    return ({ 0:"N", 45:"NE", 90:"E", 135:"SE", 180:"S", 225:"SW", 270:"W", 315:"NW" })[deg] || "";
+  }
+
+  function pad3(n) { return String(n).padStart(3, "0"); }
+
+  function indicatoreHTML(etichetta, valore, bipolare) {
+    let leftPct, widthPct;
+    if (bipolare) {
+      if (valore >= 0) { leftPct = 50; widthPct = valore * 50; }
+      else { leftPct = 50 + valore * 50; widthPct = -valore * 50; }
+    } else {
+      leftPct = 0; widthPct = valore * 100;
+    }
+    const valoreFmt = bipolare
+      ? (valore >= 0 ? "+" : "−") + Math.abs(valore).toFixed(2)
+      : valore.toFixed(2);
+    return `
+      <div class="indicatore">
+        <span class="ind-etichetta">${etichetta}</span>
+        <div class="ind-barra">
+          ${bipolare ? '<div class="ind-mezzo"></div>' : ''}
+          <div class="ind-fill" style="left:${leftPct}%; width:${widthPct}%;"></div>
+        </div>
+        <span class="ind-valore">${valoreFmt}</span>
+      </div>
+    `;
   }
 
   function renderScheda(id) {
     const scheda = document.getElementById("scheda");
     const wind = WINDS.find(w => w.id === id);
+
     if (!wind) {
-      scheda.innerHTML = '<p class="scheda-vuota"><em>nessun vento selezionato</em></p>';
+      scheda.removeAttribute("data-vento");
+      scheda.style.removeProperty("--tinta");
+      scheda.innerHTML = ATELIER_INTRO;
       return;
     }
+
     const t = wind.temperamento;
+    const acceso = engine.isActive(wind.id);
+    const intensita = state.intensita[wind.id] != null ? state.intensita[wind.id] : 55;
+
+    scheda.dataset.vento = wind.id;
+    scheda.style.setProperty("--tinta", wind.tinta);
+
     scheda.innerHTML = `
-      <h2 class="scheda-nome">${wind.nome}</h2>
-      <p class="scheda-direz">${wind.gradi}° &middot; ${wind.origine}</p>
-      <p class="scheda-prosa"><em>${wind.prosa}</em></p>
-      <p class="scheda-memoria">${wind.memoria}</p>
-      <p class="scheda-temp">
-        T ${t.temperatura.toFixed(2)} ·
-        H ${t.umidita.toFixed(2)} ·
-        S ${t.salinita.toFixed(2)} ·
-        V ${t.velocita.toFixed(2)}
+      <div class="scheda-cap">
+        <span class="scheda-deg">${pad3(wind.gradi)}°</span>
+        <span>·</span>
+        <span class="scheda-card">${cardinaleAbbr(wind.gradi)} · ${wind.abbr}</span>
+      </div>
+      <h2 class="scheda-titolo">${wind.nome}</h2>
+      <p class="scheda-aggettivi">
+        ${wind.carattere.map(a => `<em>${a}</em>`).join('<span class="punto">&middot;</span>')}
       </p>
+      <div class="scheda-temperamento">
+        ${indicatoreHTML("temperatura", t.temperatura, true)}
+        ${indicatoreHTML("umidità",     t.umidita,     false)}
+        ${indicatoreHTML("salinità",    t.salinita,    false)}
+        ${indicatoreHTML("velocità",    t.velocita,    false)}
+      </div>
+      <div class="scheda-divider-line"></div>
+
+      <h4 class="scheda-rubrica">Origine</h4>
+      <p class="scheda-paragrafo">${wind.origine}</p>
+
+      <h4 class="scheda-rubrica">Carattere</h4>
+      <p class="scheda-paragrafo prosa">${wind.prosa}</p>
+
+      <h4 class="scheda-rubrica">Memoria</h4>
+      <p class="scheda-paragrafo memoria">${wind.memoria}</p>
+
+      <div class="scheda-azioni">
+        <button class="btn-scheda${acceso ? ' attivo' : ''}" id="btn-toggle-vento" type="button">
+          ${acceso ? 'spegni il vento' : 'accendi il vento'}
+        </button>
+        <div class="scheda-intensita"${acceso ? '' : ' hidden'}>
+          <label for="slider-intensita">intensità</label>
+          <input type="range" id="slider-intensita" min="5" max="100" value="${intensita}">
+          <output id="slider-valore">${intensita}%</output>
+        </div>
+      </div>
     `;
+
+    document.getElementById("btn-toggle-vento")
+      .addEventListener("click", () => toggleVento(wind.id));
+
+    const slider = document.getElementById("slider-intensita");
+    if (slider) {
+      slider.addEventListener("input", e => {
+        const v = parseInt(e.target.value, 10);
+        state.intensita[wind.id] = v;
+        engine.setIntensity(wind.id, v / 100);
+        document.getElementById("slider-valore").textContent = v + "%";
+      });
+    }
+  }
+
+  function selezionaVento(id, soloScheda) {
+    state.selezionato = id;
+    renderScheda(id);
+    if (!soloScheda) {
+      // accent on label/sigla active
+    }
+    aggiornaEvidenze();
+  }
+
+  function aggiornaEvidenze() {
+    document.querySelectorAll("[data-wind]").forEach(el => {
+      const id = el.dataset.wind;
+      const acceso = engine.isActive(id);
+      el.classList.toggle("attivo", acceso);
+    });
+  }
+
+  function toggleVento(id) {
+    const wind = WINDS.find(w => w.id === id);
+    if (!wind) return;
+    if (engine.isActive(id)) {
+      engine.extinguishWind(id);
+    } else {
+      const intensita = (state.intensita[id] != null ? state.intensita[id] : 55) / 100;
+      engine.igniteWind({ ...wind, intensita });
+    }
+    aggiornaEvidenze();
+    aggiornaBarometro();
+    if (state.selezionato === id) renderScheda(id);
+  }
+
+  /* ============================================================
+     BAROMETRO BEAUFORT
+     ============================================================ */
+
+  function buildBarometro() {
+    const tacche = document.getElementById("quadrante-tacche");
+    if (!tacche) return;
+    // 13 tacche da 0 a 12 lungo l'arco da -135° a +135°
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12;
+      const ang = -135 + t * 270;            // gradi
+      const rad = ang * Math.PI / 180;
+      const cx = 100, cy = 110, R = 80;
+      const big = i % 3 === 0;
+      const len = big ? 8 : 4;
+      const x1 = cx + (R - 1) * Math.sin(rad);
+      const y1 = cy - (R - 1) * Math.cos(rad);
+      const x2 = cx + (R - 1 - len) * Math.sin(rad);
+      const y2 = cy - (R - 1 - len) * Math.cos(rad);
+      const tick = svgEl("line", {
+        x1, y1, x2, y2,
+        stroke: "currentColor",
+        "stroke-width": big ? 1.0 : 0.5,
+        opacity: big ? 0.85 : 0.55,
+      });
+      tacche.appendChild(tick);
+
+      if (big) {
+        const lr = R + 8;
+        const lx = cx + lr * Math.sin(rad);
+        const ly = cy - lr * Math.cos(rad);
+        const lab = svgEl("text", {
+          x: lx, y: ly + 3,
+          "text-anchor": "middle",
+          "font-family": "JetBrains Mono, monospace",
+          "font-size": 8,
+          fill: "currentColor",
+          opacity: 0.7,
+        });
+        lab.textContent = String(i);
+        tacche.appendChild(lab);
+      }
+    }
+  }
+
+  function calcolaBeaufort() {
+    let totale = 0;
+    for (const id of engine.activeIds()) {
+      const wind = WINDS.find(w => w.id === id);
+      if (!wind) continue;
+      const i = (state.intensita[id] != null ? state.intensita[id] : 55) / 100;
+      totale += i * wind.temperamento.velocita * 2.6;
+    }
+    return Math.min(12, Math.round(totale));
+  }
+
+  function aggiornaBarometro() {
+    const grado = calcolaBeaufort();
+    const ang = -135 + (grado / 12) * 270;
+    const ago = document.getElementById("ago-barometro");
+    if (ago) ago.setAttribute("transform", `rotate(${ang} 100 110)`);
+    document.getElementById("grado-beaufort").textContent = grado;
+    document.getElementById("nome-beaufort").textContent = BEAUFORT[grado];
+  }
+
+  /* ============================================================
+     INIT
+     ============================================================ */
+
+  function init() {
+    buildRosa();
+    buildBarometro();
+    renderScheda(null);          // mostra l'introduzione dell'atelier
+    aggiornaBarometro();
   }
 
   if (document.readyState === "loading") {
