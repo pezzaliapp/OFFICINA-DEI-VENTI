@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Officina dei Venti — atelier dei venti italiani</title>
+<meta name="description" content="Atelier sonoro degli otto venti italiani: tramontana, grecale, levante, scirocco, ostro, libeccio, ponente, maestrale. Audio sintetizzato dal vivo, registro di bordo, scala Beaufort.">
+<meta name="theme-color" content="#f4e8cf">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23f4e8cf'/%3E%3Cpath d='M32 6 L36 30 L32 32 Z M32 6 L32 32 L28 30 Z' fill='%231a1410'/%3E%3Cpath d='M32 58 L28 34 L32 32 Z M32 58 L32 32 L36 34 Z' fill='%23000'/%3E%3Cpath d='M58 32 L34 36 L32 32 Z M58 32 L32 32 L34 28 Z' fill='%231a1410'/%3E%3Cpath d='M6 32 L30 28 L32 32 Z M6 32 L32 32 L30 36 Z' fill='%231a1410'/%3E%3Ccircle cx='32' cy='32' r='2.5' fill='%238b3a1f'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Cormorant+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="paper-grain" aria-hidden="true"></div>
+<div class="paper-vignette" aria-hidden="true"></div>
+
+<main class="atelier">
+
+  <header class="frontespizio">
+    <div class="ornamento" aria-hidden="true">⁂</div>
+    <h1 class="titolo">
+      <span class="titolo-riga">Officina</span>
+      <span class="titolo-amp">dei</span>
+      <span class="titolo-riga">Venti</span>
+    </h1>
+    <p class="sottotitolo">atelier dei venti italiani &middot; otto firme di rumore</p>
+    <div class="riga-incisa" aria-hidden="true"></div>
+  </header>
+
+  <section class="rosa-container" aria-label="Rosa dei venti interattiva">
+    <div id="rosa" class="rosa"></div>
+    <p class="rosa-istruzione">
+      &mdash; tocca un nome per accendere il vento. più venti possono soffiare insieme. &mdash;
+    </p>
+  </section>
+
+  <section class="scheda-container" aria-label="Scheda del vento">
+    <article id="scheda" class="scheda" aria-live="polite"></article>
+  </section>
+
+  <section class="strumenti">
+    <div class="strumento barometro">
+      <h3 class="strumento-titolo">Barometro</h3>
+      <div class="quadrante" id="quadrante" aria-hidden="true">
+        <svg viewBox="0 0 200 130" class="quadrante-svg">
+          <path d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.7"/>
+          <g id="quadrante-tacche"></g>
+          <line id="ago-barometro" x1="100" y1="110" x2="100" y2="40" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" transform="rotate(-90 100 110)"/>
+          <circle cx="100" cy="110" r="3" fill="currentColor"/>
+        </svg>
+      </div>
+      <div class="lettura-barometro">
+        <span class="grado-num" id="grado-beaufort">0</span>
+        <span class="grado-nome" id="nome-beaufort">Calma</span>
+      </div>
+    </div>
+
+    <div class="strumento registro">
+      <h3 class="strumento-titolo">Registro di bordo</h3>
+      <div class="registro-controls">
+        <input type="text" id="registro-nota" placeholder="annota la composizione&hellip;" maxlength="80" autocomplete="off">
+        <button id="registro-salva" class="btn-incisione" type="button">salva</button>
+      </div>
+      <ul id="registro-elenco" class="registro-elenco"></ul>
+      <p class="registro-vuoto" id="registro-vuoto">&mdash; nessuna composizione annotata &mdash;</p>
+    </div>
+  </section>
+
+  <footer class="colophon">
+    <div class="colophon-riga"></div>
+    <p>Officina dei Venti &middot; atelier sonoro &middot; <span class="anno">MMXXVI</span></p>
+    <p class="firma"><em>i venti hanno nomi propri. lo scirocco non è il libeccio.</em></p>
+    <p class="tecnica">audio sintetizzato in tempo reale &middot; nessuna registrazione &middot; nessun servizio remoto</p>
+  </footer>
+
+</main>
+
+<script src="winds.js"></script>
+<script src="audio.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

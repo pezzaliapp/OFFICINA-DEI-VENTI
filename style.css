@@ -1,0 +1,66 @@
+/* Officina dei Venti — fogli di stile (scaffolding) */
+
+:root {
+  --carta: #f4e8cf;
+  --carta-piu: #efe1c1;
+  --carta-meno: #e8d8b5;
+  --inchiostro: #1a1410;
+  --inchiostro-tenue: #5a4a3a;
+  --inchiostro-fioco: #8a7a64;
+  --rosso-ossido: #8b3a1f;
+  --rosso-tenue: #b56548;
+  --blu-mare: #2c4858;
+  --oro-tenue: #b8954c;
+  --oro-acceso: #d4a850;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--carta);
+  color: var(--inchiostro);
+}
+
+body {
+  font-family: "Cormorant Garamond", "EB Garamond", Georgia, serif;
+  font-size: 18px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+main.atelier {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 32px 64px;
+  display: grid;
+  gap: 48px;
+}
+
+/* frontespizio */
+.frontespizio { text-align: center; }
+.titolo {
+  font-family: "Cormorant SC", "Cormorant Garamond", serif;
+  font-weight: 600;
+  font-size: clamp(48px, 10vw, 84px);
+  line-height: 1;
+}
+.sottotitolo {
+  font-style: italic;
+  color: var(--inchiostro-tenue);
+  letter-spacing: 0.04em;
+  margin-top: 8px;
+}
+
+/* placeholder layout — verrà rifinito */
+.rosa-container, .scheda-container, .strumenti {
+  border: 1px solid var(--inchiostro-tenue);
+  padding: 24px;
+  background: var(--carta-piu);
+}
+
+.colophon {
+  text-align: center;
+  font-size: 14px;
+  color: var(--inchiostro-tenue);
+  font-style: italic;
+}

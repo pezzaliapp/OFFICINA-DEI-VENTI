@@ -1,0 +1,12 @@
+{
+  "name": "officina-dei-venti",
+  "version": "0.1.0",
+  "description": "Atelier sonoro degli otto venti italiani: tramontana, grecale, levante, scirocco, ostro, libeccio, ponente, maestrale. Audio sintetizzato dal vivo con Web Audio, niente dipendenze.",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 4173"
+  },
+  "homepage": "https://www.alessandropezzali.it/OFFICINA-DEI-VENTI/",
+  "author": "Alessandro Pezzali",
+  "license": "MIT"
+}
