@@ -322,6 +322,7 @@
         state.intensita[wind.id] = v;
         engine.setIntensity(wind.id, v / 100);
         document.getElementById("slider-valore").textContent = v + "%";
+        aggiornaBarometro();
       });
     }
   }
@@ -416,15 +417,29 @@
     }
   }
 
+  // forza totale = somma delle intensità (0..1) pesate dalla velocità
+  // del vento (un libeccio pesa più di un ostro a parità di slider).
+  // mappa non lineare sulla scala Beaufort:
+  //   B = round( min(12, 6.5 · forza^0.6) ), con minimo 1 a venti accesi.
+  // calibrato così:
+  //   1 vento al 5%   → 1   (Bava di vento)
+  //   1 vento al 50%  → 3   (Brezza tesa)
+  //   1 vento al 90%  → ~5  (Vento teso)
+  //   1 vento al 100% → ~6  (Vento fresco)
+  //   2 venti al 100% → ~10 (Tempesta)
+  //   4+ al 100%      → 12  (Uragano)
   function calcolaBeaufort() {
-    let totale = 0;
+    let forza = 0;
     for (const id of engine.activeIds()) {
       const wind = WINDS.find(w => w.id === id);
       if (!wind) continue;
       const i = (state.intensita[id] != null ? state.intensita[id] : 55) / 100;
-      totale += i * wind.temperamento.velocita * 2.6;
+      const peso = 0.6 + 0.4 * wind.temperamento.velocita;
+      forza += i * peso;
     }
-    return Math.min(12, Math.round(totale));
+    if (forza <= 0) return 0;
+    const B = Math.round(6.5 * Math.pow(forza, 0.6));
+    return Math.min(12, Math.max(1, B));
   }
 
   function aggiornaBarometro() {
